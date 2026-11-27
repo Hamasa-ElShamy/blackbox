@@ -1,10 +1,10 @@
 # BlackBox
 
-[![tests](https://github.com/mohamed-elshamy-ai/blackbox/actions/workflows/tests.yml/badge.svg)](https://github.com/mohamed-elshamy-ai/blackbox/actions/workflows/tests.yml)
+[![tests](https://github.com/Hamasa-ElShamy/blackbox/actions/workflows/tests.yml/badge.svg)](https://github.com/Hamasa-ElShamy/blackbox/actions/workflows/tests.yml)
 
 Guess the layout of an unknown binary data file, and get a Python reader for it. You give it a file made of fixed-size records (a sensor log, a save file, an old database dump). It guesses the header size, the record size and what each field holds (Unix time, decimal number, whole number, text), shows a colour map of every byte, and writes a small standalone Python script that reads the file into CSV.
 
-**Try it in your browser, nothing is uploaded:** https://mohamed-elshamy-ai.github.io/blackbox/ (loads Python via Pyodide, about 10 MB the first time, from jsDelivr).
+**Try it in your browser, nothing is uploaded:** https://hamasa-elshamy.github.io/blackbox/ (loads Python via Pyodide, about 10 MB the first time, from jsDelivr).
 
 ![BlackBox demo: sample sensor log, hover over bytes, GPS sample, refusal of random data, Arabic](docs/demo.gif)
 
@@ -38,7 +38,7 @@ Header size, record size, and every field boundary are right. One miss: the `uin
 ## Install and use
 
 ```
-git clone https://github.com/mohamed-elshamy-ai/blackbox && cd blackbox
+git clone https://github.com/Hamasa-ElShamy/blackbox && cd blackbox
 pip install .
 blackbox some.bin                       # print the guess
 blackbox some.bin --reader reader.py    # also write a Python reader
