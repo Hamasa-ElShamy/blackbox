@@ -6,6 +6,10 @@ Guess the layout of an unknown binary data file, and get a Python reader for it.
 
 **Try it in your browser, nothing is uploaded:** https://mohamed-elshamy-ai.github.io/blackbox/ (loads Python via Pyodide, about 10 MB the first time, from jsDelivr).
 
+![BlackBox demo: sample sensor log, hover over bytes, GPS sample, refusal of random data, Arabic](docs/demo.gif)
+
+About 25 seconds, recorded from the live page. [MP4 version](docs/demo.mp4).
+
 It is a guessing tool. Every result is a hypothesis from patterns, not knowledge of the format.
 
 ## Worked example
