@@ -61,3 +61,10 @@ def test_cli_runs(tmp_path):
     p = tmp_path / "s.bin"; p.write_bytes(sensor())
     out = subprocess.run([sys.executable, "-m", "blackbox.cli", str(p)], capture_output=True, text=True).stdout
     assert "LAYOUT GUESS" in out and "timestamp" in out
+
+
+def test_unreadable_file_clean_error(tmp_path):
+    import subprocess, sys
+    for p in (tmp_path / "missing.bin", tmp_path):
+        r = subprocess.run([sys.executable, "-m", "blackbox.cli", str(p)], capture_output=True, text=True)
+        assert r.returncode != 0 and "Traceback" not in r.stderr and "blackbox:" in r.stderr

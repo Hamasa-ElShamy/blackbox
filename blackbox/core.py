@@ -66,15 +66,15 @@ def find_layout(data):
     Step 1: find the record size from byte-equality at every lag (peaks at R, 2R, 3R...), pick the smallest R whose multiples all peak.
     Step 2: the header size must be L mod R plus whole records; skip leading chunks that do not look like the records after them."""
     L = len(data)
-    maxlag = min(1024, L // 3)
+    maxlag = min(2048, L // 3)
     if maxlag < 8: return None
     S = min(6000, L - maxlag)
     m = _lag_profile(data, maxlag, S)
     vals = sorted(m.values()); med = vals[len(vals) // 2]
     score = {}
-    for d in range(2, min(512, maxlag // 2) + 1):
+    for d in range(2, min(512, maxlag // 4) + 1):   # at least 4 multiples, so one noisy lag cannot decide
         ms = [m[x] for x in range(d, maxlag + 1, d)]
-        score[d] = sum(ms) / len(ms)
+        ms.sort(); ms = ms[:max(3, int(len(ms) * 0.85))]; score[d] = sum(ms) / len(ms)   # drop the highest 15%: a lucky lag (for example a timestamp byte that repeats) cannot decide
     if not score: return None
     top = max(score.values())
     if top - med < 0.03: return None

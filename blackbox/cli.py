@@ -21,13 +21,17 @@ def main(argv=None):
     ap.add_argument("--reader", metavar="OUT.py", help="write a generated Python reader to this file")
     ap.add_argument("--max-mb", type=float, default=8, help="analyse at most this much of the file (default 8)")
     o = ap.parse_args(argv)
-    data = open(o.file, "rb").read(int(o.max_mb * 1e6))
+    try:
+        with open(o.file, "rb") as fh: data = fh.read(int(o.max_mb * 1e6))
+    except OSError as e: sys.exit(f"blackbox: cannot read '{o.file}': {e.strerror or e}")
     r = core.analyse(data, o.file)
     if o.json: print(json.dumps(r, indent=1)); return
     print(render(r))
     if o.reader:
         if not r["layout"]: sys.exit("no layout found, nothing to write")
-        open(o.reader, "w").write(gen.reader_source(r, o.file)); print(f"wrote {o.reader}")
+        try: open(o.reader, "w").write(gen.reader_source(r, o.file))
+        except OSError as e: sys.exit(f"blackbox: cannot write '{o.reader}': {e.strerror or e}")
+        print(f"wrote {o.reader}")
 
 
 if __name__ == "__main__":
