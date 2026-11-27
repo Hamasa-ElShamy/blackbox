@@ -3,7 +3,7 @@
 Everything here is a heuristic. analyse() returns its guesses with a confidence
 and the reasons, never a claim that the layout is right.
 """
-import math, struct, time
+import math, operator, struct, time
 
 MAGIC = [(b"\x89PNG\r\n\x1a\n", "PNG image"), (b"\xff\xd8\xff", "JPEG image"), (b"GIF8", "GIF image"),
          (b"%PDF", "PDF document"), (b"PK\x03\x04", "ZIP container (also docx, xlsx, jar, apk)"),
@@ -40,23 +40,60 @@ def _score(data, H, R, n):
     return 0.7 * (1 - ent / R / cap) + 0.3 * same / (R * (n - 1))
 
 
+def _lag_profile(data, maxlag, S):
+    """For each lag, the share of bytes equal to the byte that many places later. Peaks sit at the record size and its multiples."""
+    L = len(data); a0 = max(0, (L - S - maxlag) // 2)
+    seg = data[a0:a0 + S + maxlag]; base = seg[:S]
+    return {lag: sum(map(operator.eq, base, seg[lag:lag + S])) / S for lag in range(1, maxlag + 1)}
+
+
+def _chunk_scores(data, H0, R, k):
+    """Per chunk of R bytes starting at H0: how many bytes equal the usual byte of their column."""
+    n = (len(data) - H0) // R
+    mid = range(n // 4, max(n // 4 + 1, 3 * n // 4))[:400]
+    modes = []
+    for c in range(R):
+        cnt = {}
+        for i in mid:
+            v = data[H0 + i * R + c]; cnt[v] = cnt.get(v, 0) + 1
+        modes.append(max(cnt, key=cnt.get))
+    def sc(i): return sum(data[H0 + i * R + c] == modes[c] for c in range(R)) / R
+    return sc, n, mid
+
+
 def find_layout(data):
-    """Return (header_size, record_size, records, score, notes) or None."""
+    """Return (header_size, record_size, records, score, notes) or None.
+    Step 1: find the record size from byte-equality at every lag (peaks at R, 2R, 3R...), pick the smallest R whose multiples all peak.
+    Step 2: the header size must be L mod R plus whole records; skip leading chunks that do not look like the records after them."""
     L = len(data)
-    best = None
-    for R in range(2, 513):
-        for H in range(0, min(129, L // 4)):
-            if (L - H) % R: continue
-            n = (L - H) // R
-            if n < 4: continue
-            s = _score(data, H, R, n)
-            # a bigger multiple of the true size scores the same; prefer the smallest that is nearly as good
-            cand = (s, -R, H)
-            if best is None or s > best[0] + 0.02 or (abs(s - best[0]) <= 0.02 and R < best[1]):
-                best = (s, R, H, n)
-    if not best or best[0] < 0.35: return None
-    s, R, H, n = best
-    return H, R, n, round(s, 3)
+    maxlag = min(2048, L // 3)
+    if maxlag < 8: return None
+    S = min(6000, L - maxlag)
+    m = _lag_profile(data, maxlag, S)
+    vals = sorted(m.values()); med = vals[len(vals) // 2]
+    score = {}
+    for d in range(2, min(512, maxlag // 4) + 1):   # at least 4 multiples, so one noisy lag cannot decide
+        ms = [m[x] for x in range(d, maxlag + 1, d)]
+        ms.sort(); ms = ms[:max(3, int(len(ms) * 0.85))]; score[d] = sum(ms) / len(ms)   # drop the highest 15%: a lucky lag (for example a timestamp byte that repeats) cannot decide
+    if not score: return None
+    top = max(score.values())
+    if top - med < 0.03: return None
+    R = None
+    for d in sorted(score):
+        if score[d] >= top - max(0.012, 0.06 * (top - med)) and L % d <= 128 and (L - L % d) // d >= 6:
+            R = d; break
+    if R is None: return None
+    H0 = L % R
+    sc, n, mid = _chunk_scores(data, H0, R, 0)
+    base = sorted(sc(i) for i in mid)
+    typ = base[len(base) // 2] if base else 0
+    k = 0
+    if typ > 0.1:
+        while H0 + (k + 1) * R <= 128 and sc(k) < 0.5 * typ: k += 1
+    H = H0 + k * R
+    n = (L - H) // R
+    if n < 6: return None
+    return H, R, n, round(_score(data, H, R, n), 3)
 
 
 def _vals(data, H, R, n, off, w, fmt):
@@ -106,7 +143,7 @@ def infer_fields(data, H, R, n, endian=None):
             if off + w > R or sum(not const[off + t] for t in range(w)) < 2: continue
             for e in ("<", ">"):
                 lowc = {("float64", "<"): range(off, off + 3), ("float64", ">"): range(off + 5, off + 8), ("float32", "<"): [off], ("float32", ">"): [off + 3]}.get((kind, e))
-                if lowc is not None and all(const[c] for c in lowc): continue
+                if lowc is not None and sum(const[c] for c in lowc) >= (2 if kind == "float64" else 1): continue
                 v = get(w, ch, e)
                 if kind == "timestamp":
                     good = sum(946684800 <= x <= 2208988800 for x in v) / k >= 0.95 and len(set(v)) > 1 and _sorted_frac(v) >= 0.9
@@ -146,15 +183,31 @@ def infer_fields(data, H, R, n, endian=None):
         total = zb + vr + za
         width = 1 if total == 1 else (2 if total == 2 else 4)
         while width > R - off: width //= 2
+        forced = None
+        if zb == 0 and vr >= 3 and off + 3 <= R:
+            # A busy byte followed by a quiet one (or the reverse for big endian) shows a 16-bit field.
+            en = [entropy(bytes(cols[off + t])) for t in range(3)]
+            if en[1] <= en[0] - 3: forced = "<"
+            elif en[1] >= en[0] + 3 and en[2] <= en[1] - 3: forced = ">"
+            if forced: width = 2
         if width == 1: e = "<"
+        elif forced: e = forced
         elif zb: e = ">"
         elif za: e = "<"
         else:
             eb = entropy(bytes(cols[off])); el = entropy(bytes(cols[off + width - 1]))
             e = ">" if eb < el else "<"
+        signed = False
+        if width in (2, 4) and not zb and (forced or not za):
+            hb = cols[off + width - 1] if e == "<" else cols[off]
+            near = sum(b <= 0x0F or b >= 0xF0 for b in hb) / k
+            neg = sum(b >= 0x80 for b in hb) / k
+            signed = near >= 0.9 and neg >= 0.1
         if width > 1: votes[e] += 1
         note = "single byte (flag, small number or code)" if width == 1 else ("whole number; the always-zero bytes mean the true width may be smaller" if (zb or za) else "whole number")
-        out.append(dict(off=off, size=width, kind={1: "uint8", 2: "uint16", 4: "uint32"}[width], endian=e, note=note))
+        kind = {1: "uint8", 2: "uint16", 4: "uint32"}[width]
+        if signed: kind, note = kind[1:], "signed whole number (the top byte is mostly 0x00 or 0xFF)"
+        out.append(dict(off=off, size=width, kind=kind, endian=e, note=note))
         off += width
     names = {}
     for f in out:
@@ -165,7 +218,7 @@ def infer_fields(data, H, R, n, endian=None):
     return out, maj, votes
 
 
-STRUCT = {"float64": "d", "float32": "f", "timestamp": "I", "uint32": "I", "uint16": "H", "uint8": "B"}
+STRUCT = {"float64": "d", "float32": "f", "timestamp": "I", "uint32": "I", "uint16": "H", "uint8": "B", "int32": "i", "int16": "h"}
 
 
 def confidence(score, n, fields):

@@ -68,3 +68,21 @@ def test_unreadable_file_clean_error(tmp_path):
     for p in (tmp_path / "missing.bin", tmp_path):
         r = subprocess.run([sys.executable, "-m", "blackbox.cli", str(p)], capture_output=True, text=True)
         assert r.returncode != 0 and "Traceback" not in r.stderr and "blackbox:" in r.stderr
+
+
+def test_signed_values_are_found():
+    import random, struct
+    r = random.Random(3)
+    data = b"".join(struct.pack("<hhhH", int(r.gauss(0, 800)), int(r.gauss(0, 800)), int(r.gauss(-1000, 300)), r.randint(9, 11)) for _ in range(400))
+    a = core.analyse(data)
+    got = [(f["off"], f["kind"]) for f in a["fields"]]
+    assert a["layout"]["record_size"] == 8
+    assert got == [(0, "int16"), (2, "int16"), (4, "int16"), (6, "uint16")]
+
+
+def test_unsigned_small_numbers_stay_unsigned():
+    import random, struct
+    r = random.Random(4)
+    data = b"".join(struct.pack("<HHH", r.randint(0, 3000), r.randint(0, 50), r.randint(0, 3000)) for _ in range(400))
+    a = core.analyse(data)
+    assert a["layout"] and all(not f["kind"].startswith("int") for f in a["fields"])

@@ -143,7 +143,7 @@ def infer_fields(data, H, R, n, endian=None):
             if off + w > R or sum(not const[off + t] for t in range(w)) < 2: continue
             for e in ("<", ">"):
                 lowc = {("float64", "<"): range(off, off + 3), ("float64", ">"): range(off + 5, off + 8), ("float32", "<"): [off], ("float32", ">"): [off + 3]}.get((kind, e))
-                if lowc is not None and all(const[c] for c in lowc): continue
+                if lowc is not None and sum(const[c] for c in lowc) >= (2 if kind == "float64" else 1): continue
                 v = get(w, ch, e)
                 if kind == "timestamp":
                     good = sum(946684800 <= x <= 2208988800 for x in v) / k >= 0.95 and len(set(v)) > 1 and _sorted_frac(v) >= 0.9
@@ -183,15 +183,31 @@ def infer_fields(data, H, R, n, endian=None):
         total = zb + vr + za
         width = 1 if total == 1 else (2 if total == 2 else 4)
         while width > R - off: width //= 2
+        forced = None
+        if zb == 0 and vr >= 3 and off + 3 <= R:
+            # A busy byte followed by a quiet one (or the reverse for big endian) shows a 16-bit field.
+            en = [entropy(bytes(cols[off + t])) for t in range(3)]
+            if en[1] <= en[0] - 3: forced = "<"
+            elif en[1] >= en[0] + 3 and en[2] <= en[1] - 3: forced = ">"
+            if forced: width = 2
         if width == 1: e = "<"
+        elif forced: e = forced
         elif zb: e = ">"
         elif za: e = "<"
         else:
             eb = entropy(bytes(cols[off])); el = entropy(bytes(cols[off + width - 1]))
             e = ">" if eb < el else "<"
+        signed = False
+        if width in (2, 4) and not zb and (forced or not za):
+            hb = cols[off + width - 1] if e == "<" else cols[off]
+            near = sum(b <= 0x0F or b >= 0xF0 for b in hb) / k
+            neg = sum(b >= 0x80 for b in hb) / k
+            signed = near >= 0.9 and neg >= 0.1
         if width > 1: votes[e] += 1
         note = "single byte (flag, small number or code)" if width == 1 else ("whole number; the always-zero bytes mean the true width may be smaller" if (zb or za) else "whole number")
-        out.append(dict(off=off, size=width, kind={1: "uint8", 2: "uint16", 4: "uint32"}[width], endian=e, note=note))
+        kind = {1: "uint8", 2: "uint16", 4: "uint32"}[width]
+        if signed: kind, note = kind[1:], "signed whole number (the top byte is mostly 0x00 or 0xFF)"
+        out.append(dict(off=off, size=width, kind=kind, endian=e, note=note))
         off += width
     names = {}
     for f in out:
@@ -202,7 +218,7 @@ def infer_fields(data, H, R, n, endian=None):
     return out, maj, votes
 
 
-STRUCT = {"float64": "d", "float32": "f", "timestamp": "I", "uint32": "I", "uint16": "H", "uint8": "B"}
+STRUCT = {"float64": "d", "float32": "f", "timestamp": "I", "uint32": "I", "uint16": "H", "uint8": "B", "int32": "i", "int16": "h"}
 
 
 def confidence(score, n, fields):

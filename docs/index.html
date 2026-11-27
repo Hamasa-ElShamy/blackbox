@@ -28,7 +28,7 @@ button.b[aria-pressed=true]{background:var(--ink);color:#fff}
 .map table{border-collapse:separate;border-spacing:2px;font:600 .72rem var(--mono)}
 .map td{min-width:22px;height:22px;text-align:center;color:#10201f;cursor:default;border-radius:2px;padding:0}
 .map th{font-weight:400;color:var(--mut);padding:0 8px 0 0;text-align:right;position:sticky;left:0;background:#fff}
-td.k-timestamp{background:var(--c-ts)}td.k-float32,td.k-float64{background:var(--c-f);color:#fff}td.k-uint8,td.k-uint16,td.k-uint32{background:var(--c-i);color:#fff}td.k-text{background:var(--c-t);color:#fff}td.k-constant{background:var(--c-k)}td.k-header{background:var(--c-h);color:#fff}td.k-none{background:#eee}
+td.k-timestamp{background:var(--c-ts)}td.k-float32,td.k-float64{background:var(--c-f);color:#fff}td.k-uint8,td.k-uint16,td.k-uint32,td.k-int16,td.k-int32{background:var(--c-i);color:#fff}td.k-text{background:var(--c-t);color:#fff}td.k-constant{background:var(--c-k)}td.k-header{background:var(--c-h);color:#fff}td.k-none{background:#eee}
 td.sel{outline:3px solid var(--ink);outline-offset:-1px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 0;font-size:.9rem}.legend span:before{content:"";display:inline-block;width:14px;height:14px;margin-inline-end:6px;vertical-align:-2px;border-radius:2px;background:var(--c)}
 #tip{font:.9rem var(--mono);min-height:2.7em;margin:8px 0;padding:8px 10px;background:#eef6f4;border-inline-start:5px solid var(--acc);direction:ltr}
@@ -133,7 +133,7 @@ function show(r){
     if(td.dataset.c===undefined){t.textContent='offset '+o+': header byte (the first '+H+' bytes)';return;}
     const f=fAt[+td.dataset.c];if(!f){t.textContent='offset '+o;return}
     const rs=H+Math.floor((o-H)/R)*R+f.off;let v='';const dv=new DataView(bytes.buffer,bytes.byteOffset);const le=f.endian!=='>';
-    try{if(f.kind==='float32')v=dv.getFloat32(rs,le);else if(f.kind==='float64')v=dv.getFloat64(rs,le);else if(f.kind==='uint32'||f.kind==='timestamp'){v=dv.getUint32(rs,le);if(f.kind==='timestamp')v+=' = '+new Date(v*1000).toISOString();}else if(f.kind==='uint16')v=dv.getUint16(rs,le);else if(f.kind==='uint8')v=bytes[rs];else if(f.kind==='text')v=JSON.stringify(String.fromCharCode(...bytes.slice(rs,rs+f.size)).replace(/\\0+$/,''));else v='(constant)';}catch(e){}
+    try{if(f.kind==='float32')v=dv.getFloat32(rs,le);else if(f.kind==='float64')v=dv.getFloat64(rs,le);else if(f.kind==='uint32'||f.kind==='timestamp'){v=dv.getUint32(rs,le);if(f.kind==='timestamp')v+=' = '+new Date(v*1000).toISOString();}else if(f.kind==='uint16')v=dv.getUint16(rs,le);else if(f.kind==='int16')v=dv.getInt16(rs,le);else if(f.kind==='int32')v=dv.getInt32(rs,le);else if(f.kind==='uint8')v=bytes[rs];else if(f.kind==='text')v=JSON.stringify(String.fromCharCode(...bytes.slice(rs,rs+f.size)).replace(/\\0+$/,''));else v='(constant)';}catch(e){}
     t.textContent='record '+Math.floor((o-H)/R)+', '+f.name+' ('+f.kind+(f.endian?', '+(f.endian==='>'?'big':'little')+' endian':'')+') at byte '+f.off+' = '+v+'\n'+f.note;};
   m.onmouseover=e=>show1(e.target.closest('td'));m.onclick=e=>show1(e.target.closest('td'));
   let t='<tr><th>offset</th><th>size</th><th>type</th><th>byte order</th><th>name</th></tr>';

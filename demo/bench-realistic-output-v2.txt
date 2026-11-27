@@ -1,0 +1,7 @@
+utmp (384-byte login records)      layout right 5/5   fields right 20/30
+sensor logger (16-byte header)     layout right 4/5   fields right 12/25
+GPS track                          layout right 5/5   fields right 20/20
+high-score file                    layout right 5/5   fields right 20/20
+network flow log (big endian)      layout right 5/5   fields right 5/40
+accelerometer (signed values)      layout right 5/5   fields right 0/20
+TOTAL layout right 29/30; fields right 77/155 (50%) (counted over all fields, wrong layout counts as wrong)

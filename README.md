@@ -78,19 +78,19 @@ I looked at the five first misses of the old run while designing the change, so 
 
 [`demo/bench_realistic.py`](demo/bench_realistic.py) writes files the way real programs do (smoother data, 5 files per layout): a utmp-style login log, a sensor logger with a 16-byte header, a GPS track, a high-score file, a big-endian network flow log, and an accelerometer with signed 16-bit values. These are my own synthetic files, not third-party ones.
 
-| | before ([`v1`](demo/bench-realistic-output-v1.txt)) | now ([`output`](demo/bench-realistic-output.txt)) |
+| | before ([`v2`](demo/bench-realistic-output-v2.txt)) | now ([`output`](demo/bench-realistic-output.txt)) |
 |---|---|---|
 | Header size and record size exactly right | 25 of 30 | **29 of 30** |
-| Fields exactly right (all fields, wrong layout counts as wrong) | 65 of 155 (42%) | 77 of 155 (50%) |
+| Fields exactly right (all fields, wrong layout counts as wrong) | 77 of 155 (50%), see [`v2`](demo/bench-realistic-output-v2.txt) | **101 of 155 (65%)** |
 
-Fields are still weak: the big-endian flow log got 5 of 40, the utmp layout 20 of 30, and signed 16-bit values 0 of 20 because signed types are not detected at all. Half the fields is not good enough to trust without checking.
+Fields are still weak: the big-endian flow log gets 5 of 40 (two IP addresses side by side look like a decimal number), and the utmp layout 20 of 30. Signed 16-bit values went from 0 of 20 to 20 of 20 after v0.3 added a signed-number check and a rule that splits runs of 16-bit fields by how busy each byte is. I wrote those rules while looking at this same benchmark, so the 65% is optimistic. On 60 other random layouts (seeds 1000 to 1059) fields right went from 113 of 269 (42%) to 126 of 269 (47%), which is the fairer number. Half the fields is still not good enough to trust without checking.
 
 That test is harsh on purpose: numbers are uniformly random, so there is little pattern to find, and very short records (for example 6 bytes) are often missed. Real files with smoother data usually do better, but I have not measured that on real third-party files, so I do not claim it. Run on `/var/log/lastlog` (a real file, almost all zero bytes) it correctly says there is nothing to learn.
 
 ## Limitations
 
 - Fixed-size records only. No variable-length fields, pointers or bit fields.
-- Signed and unsigned are not told apart. A small whole number can be reported wider than it is. A timestamp can be taken for a decimal number and the reverse.
+- Signed numbers are only guessed from the top byte (mostly 0x00 or 0xFF). A small whole number can be reported wider than it is. A timestamp can be taken for a decimal number and the reverse.
 - A text header whose size is a multiple of the record size looks like a few extra records (the tool notes when it picked header size 0).
 - Unusual encodings (BCD, packed dates, 24-bit values, 128-bit values) are not understood.
 - It cannot tell you what a field means, only its likely type.
