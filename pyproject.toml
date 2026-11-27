@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blackbox-layout"
+version = "0.1.0"
+description = "Guess the layout of an unknown fixed-record binary file and write a Python reader for it."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+dependencies = []
+
+[project.scripts]
+blackbox = "blackbox.cli:main"
+
+[tool.setuptools]
+packages = ["blackbox"]

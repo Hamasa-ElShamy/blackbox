@@ -1,0 +1,8 @@
+FILE: demo/gps.bin  (10000 bytes, entropy 6.95/8)
+LAYOUT GUESS (medium confidence): header 0 bytes, then 500 records of 20 bytes (regularity 0.375)
+ offset size  type       byte order note
+      0    8  float64    big        plausible decimal values
+      8    8  float64    big        plausible decimal values
+     16    4  uint32     big        whole number; the always-zero bytes mean the true width may be smaller
+NOTE: Header size 0 was chosen. A header whose size is a multiple of the record size looks like a few extra records at the start; check the first rows.
+NOTE: These are guesses from patterns, not knowledge of the format. Check a few rows against the real thing.

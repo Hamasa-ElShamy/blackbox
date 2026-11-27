@@ -1,0 +1,11 @@
+FILE: demo/sensor.bin  (7204 bytes, entropy 5.64/8)
+LAYOUT GUESS (high confidence): header 4 bytes, then 300 records of 24 bytes (regularity 0.69)
+ offset size  type       byte order note
+      0    4  timestamp  little     Unix time in seconds, steadily increasing
+      4    4  float32    little     plausible decimal values
+      8    4  float32    little     plausible decimal values
+     12    2  uint16     little     whole number; the always-zero bytes mean the true width may be smaller
+     14    2  uint16     little     whole number; the always-zero bytes mean the true width may be smaller
+     16    8  text       -          printable text, zero padded
+NOTE: These are guesses from patterns, not knowledge of the format. Check a few rows against the real thing.
+wrote demo/sensor_reader.py
