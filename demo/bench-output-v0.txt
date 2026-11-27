@@ -1,0 +1,3 @@
+files: 60; layout (header size + record size) exactly right: 30/60
+fields exactly right (offset and type), among files with right layout: 80/173 = 46%
+first layout misses (seed, field types): [(2, ['u8', 'u8', 'u32']), (3, ['f64', 'f64', 'u16', 'u32']), (7, ['u16', 'f32', 'time', 'u8', 'u8']), (8, ['u32', 'f32', 'u16', 'u16']), (9, ['f64', 'u32', 'u32', 'u16', 'u16', 'text'])]

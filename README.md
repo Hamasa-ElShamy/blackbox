@@ -65,8 +65,14 @@ No AI model. Each decision is a rule you can read in [`blackbox/core.py`](blackb
 
 [`demo/bench.py`](demo/bench.py) builds random layouts (3 to 7 fields, random types and byte order, header 0 to 16 bytes, 100 to 1000 records) so the truth is known, then checks the guess. Output in [`demo/bench-output.txt`](demo/bench-output.txt):
 
-- Header size and record size exactly right: **30 of 60 files**.
-- Field offset and type exactly right, counted only in files where the layout was right: **80 of 173 fields (46%)**.
+Same 60 files (seeds 0 to 59), before and after I replaced the record-size search (it now looks at how often a byte equals the byte N places later, instead of scoring every size and header pair):
+
+| | v0.1 ([`bench-output-v0.txt`](demo/bench-output-v0.txt)) | now ([`bench-output.txt`](demo/bench-output.txt)) |
+|---|---|---|
+| Header size and record size exactly right | 30 of 60 | **53 of 60** |
+| Field offset and type exactly right, counted only where the layout was right | 80 of 173 (46%) | 121 of 274 (44%) |
+
+I looked at the five first misses of the old run while designing the change, so seeds 0 to 59 are not a clean held-out set. I checked the change on 60 other seeds (1000 to 1059): 53 of 60 as well. Field accuracy did **not** improve: most field errors are fields that start at the wrong offset after an earlier wrong guess.
 
 That test is harsh on purpose: numbers are uniformly random, so there is little pattern to find, and very short records (for example 6 bytes) are often missed. Real files with smoother data usually do better, but I have not measured that on real third-party files, so I do not claim it. Run on `/var/log/lastlog` (a real file, almost all zero bytes) it correctly says there is nothing to learn.
 

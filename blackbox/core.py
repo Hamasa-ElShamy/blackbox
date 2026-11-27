@@ -3,7 +3,7 @@
 Everything here is a heuristic. analyse() returns its guesses with a confidence
 and the reasons, never a claim that the layout is right.
 """
-import math, struct, time
+import math, operator, struct, time
 
 MAGIC = [(b"\x89PNG\r\n\x1a\n", "PNG image"), (b"\xff\xd8\xff", "JPEG image"), (b"GIF8", "GIF image"),
          (b"%PDF", "PDF document"), (b"PK\x03\x04", "ZIP container (also docx, xlsx, jar, apk)"),
@@ -40,23 +40,60 @@ def _score(data, H, R, n):
     return 0.7 * (1 - ent / R / cap) + 0.3 * same / (R * (n - 1))
 
 
+def _lag_profile(data, maxlag, S):
+    """For each lag, the share of bytes equal to the byte that many places later. Peaks sit at the record size and its multiples."""
+    L = len(data); a0 = max(0, (L - S - maxlag) // 2)
+    seg = data[a0:a0 + S + maxlag]; base = seg[:S]
+    return {lag: sum(map(operator.eq, base, seg[lag:lag + S])) / S for lag in range(1, maxlag + 1)}
+
+
+def _chunk_scores(data, H0, R, k):
+    """Per chunk of R bytes starting at H0: how many bytes equal the usual byte of their column."""
+    n = (len(data) - H0) // R
+    mid = range(n // 4, max(n // 4 + 1, 3 * n // 4))[:400]
+    modes = []
+    for c in range(R):
+        cnt = {}
+        for i in mid:
+            v = data[H0 + i * R + c]; cnt[v] = cnt.get(v, 0) + 1
+        modes.append(max(cnt, key=cnt.get))
+    def sc(i): return sum(data[H0 + i * R + c] == modes[c] for c in range(R)) / R
+    return sc, n, mid
+
+
 def find_layout(data):
-    """Return (header_size, record_size, records, score, notes) or None."""
+    """Return (header_size, record_size, records, score, notes) or None.
+    Step 1: find the record size from byte-equality at every lag (peaks at R, 2R, 3R...), pick the smallest R whose multiples all peak.
+    Step 2: the header size must be L mod R plus whole records; skip leading chunks that do not look like the records after them."""
     L = len(data)
-    best = None
-    for R in range(2, 513):
-        for H in range(0, min(129, L // 4)):
-            if (L - H) % R: continue
-            n = (L - H) // R
-            if n < 4: continue
-            s = _score(data, H, R, n)
-            # a bigger multiple of the true size scores the same; prefer the smallest that is nearly as good
-            cand = (s, -R, H)
-            if best is None or s > best[0] + 0.02 or (abs(s - best[0]) <= 0.02 and R < best[1]):
-                best = (s, R, H, n)
-    if not best or best[0] < 0.35: return None
-    s, R, H, n = best
-    return H, R, n, round(s, 3)
+    maxlag = min(1024, L // 3)
+    if maxlag < 8: return None
+    S = min(6000, L - maxlag)
+    m = _lag_profile(data, maxlag, S)
+    vals = sorted(m.values()); med = vals[len(vals) // 2]
+    score = {}
+    for d in range(2, min(512, maxlag // 2) + 1):
+        ms = [m[x] for x in range(d, maxlag + 1, d)]
+        score[d] = sum(ms) / len(ms)
+    if not score: return None
+    top = max(score.values())
+    if top - med < 0.03: return None
+    R = None
+    for d in sorted(score):
+        if score[d] >= top - max(0.012, 0.06 * (top - med)) and L % d <= 128 and (L - L % d) // d >= 6:
+            R = d; break
+    if R is None: return None
+    H0 = L % R
+    sc, n, mid = _chunk_scores(data, H0, R, 0)
+    base = sorted(sc(i) for i in mid)
+    typ = base[len(base) // 2] if base else 0
+    k = 0
+    if typ > 0.1:
+        while H0 + (k + 1) * R <= 128 and sc(k) < 0.5 * typ: k += 1
+    H = H0 + k * R
+    n = (L - H) // R
+    if n < 6: return None
+    return H, R, n, round(_score(data, H, R, n), 3)
 
 
 def _vals(data, H, R, n, off, w, fmt):
