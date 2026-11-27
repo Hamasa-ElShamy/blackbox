@@ -72,7 +72,18 @@ Same 60 files (seeds 0 to 59), before and after I replaced the record-size searc
 | Header size and record size exactly right | 30 of 60 | **53 of 60** |
 | Field offset and type exactly right, counted only where the layout was right | 80 of 173 (46%) | 121 of 274 (44%) |
 
-I looked at the five first misses of the old run while designing the change, so seeds 0 to 59 are not a clean held-out set. I checked the change on 60 other seeds (1000 to 1059): 53 of 60 as well. Field accuracy did **not** improve: most field errors are fields that start at the wrong offset after an earlier wrong guess.
+I looked at the five first misses of the old run while designing the change, so seeds 0 to 59 are not a clean held-out set. I checked the change on 60 other seeds (1000 to 1059): 58 of 60 with the final version. Field accuracy did **not** improve: most field errors are fields that start at the wrong offset after an earlier wrong guess.
+
+### Six layouts built like real programs
+
+[`demo/bench_realistic.py`](demo/bench_realistic.py) writes files the way real programs do (smoother data, 5 files per layout): a utmp-style login log, a sensor logger with a 16-byte header, a GPS track, a high-score file, a big-endian network flow log, and an accelerometer with signed 16-bit values. These are my own synthetic files, not third-party ones.
+
+| | before ([`v1`](demo/bench-realistic-output-v1.txt)) | now ([`output`](demo/bench-realistic-output.txt)) |
+|---|---|---|
+| Header size and record size exactly right | 25 of 30 | **29 of 30** |
+| Fields exactly right (all fields, wrong layout counts as wrong) | 65 of 155 (42%) | 77 of 155 (50%) |
+
+Fields are still weak: the big-endian flow log got 5 of 40, the utmp layout 20 of 30, and signed 16-bit values 0 of 20 because signed types are not detected at all. Half the fields is not good enough to trust without checking.
 
 That test is harsh on purpose: numbers are uniformly random, so there is little pattern to find, and very short records (for example 6 bytes) are often missed. Real files with smoother data usually do better, but I have not measured that on real third-party files, so I do not claim it. Run on `/var/log/lastlog` (a real file, almost all zero bytes) it correctly says there is nothing to learn.
 
@@ -90,7 +101,7 @@ That test is harsh on purpose: numbers are uniformly random, so there is little 
 
 ## Tests
 
-`pytest`: 7 tests (layout and field types on two known layouts, generated reader round trip, refusal of known formats, random data and zero files, command line).
+`pytest`: 8 tests (layout and field types on two known layouts, generated reader round trip, refusal of known formats, random data and zero files, command line).
 
 ## License
 
